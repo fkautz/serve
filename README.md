@@ -3,8 +3,38 @@ serve
 
 A very simple static HTTP server
 
+install
+=======
+
+```sh
+go get github.com/fkautz/serve
+```
+
 usage
 =====
+
+```
+NAME:
+   serve - Simple HTTP Server
+
+USAGE:
+   serve [global options] command [command options] [arguments...]
+
+VERSION:
+   0.0.0
+
+COMMANDS:
+   help, h	Shows a list of commands or help for one command
+   
+GLOBAL OPTIONS:
+   --dir, -d '.'		Directory to serve
+   --address, -a ':8080'	Address to listen on
+   --help, -h			show help
+   --version, -v		print the version
+```
+
+examples
+========
 
 ```sh
 # current directory port 8080

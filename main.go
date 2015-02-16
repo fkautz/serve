@@ -24,6 +24,10 @@ func main() {
 			Value: ":8080",
 			Usage: "Address to listen on",
 		},
+		cli.BoolFlag{
+			Name:  "log,l",
+			Usage: "Log to stderr",
+		},
 	}
 	app.Action = func(c *cli.Context) {
 		address := ":8080"
@@ -36,6 +40,9 @@ func main() {
 			address = c.String("address")
 		}
 		server := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
+		if c.Bool("log") {
+			server = handlers.LoggingHandler(os.Stderr, server)
+		}
 		log.Fatal(http.ListenAndServe(address, server))
 	}
 

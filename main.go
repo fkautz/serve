@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/codegangsta/cli"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/codegangsta/cli"
+	"github.com/gorilla/handlers"
 )
 
 func main() {
@@ -33,7 +35,8 @@ func main() {
 		if c.String("address") != "" {
 			address = c.String("address")
 		}
-		log.Fatal(http.ListenAndServe(address, http.FileServer(http.Dir(dir))))
+		server := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
+		log.Fatal(http.ListenAndServe(address, server))
 	}
 
 	app.Run(os.Args)

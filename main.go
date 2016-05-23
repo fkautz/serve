@@ -28,6 +28,16 @@ func main() {
 			Name:  "log,l",
 			Usage: "Log to stderr",
 		},
+		cli.StringFlag{
+			Name:  "cert,c",
+			Value: "",
+			Usage: "Certificate for TLS",
+		},
+		cli.StringFlag{
+			Name:  "key,k",
+			Value: "",
+			Usage: "Key for TLS",
+		},
 	}
 	app.Action = func(c *cli.Context) {
 		address := ":8080"
@@ -43,7 +53,19 @@ func main() {
 		if c.Bool("log") {
 			server = handlers.LoggingHandler(os.Stderr, server)
 		}
-		log.Fatal(http.ListenAndServe(address, server))
+		cert := c.String("cert")
+		key := c.String("key")
+		// if cert or key are set, start TLS
+		if cert != "" || key != "" {
+			// Both cert and key must be set
+			if cert == "" || key == "" {
+				log.Fatalln("Both a certificate and key must be provided for TLS")
+			}
+			log.Fatalln(http.ListenAndServeTLS(address, cert, key, server))
+		} else {
+			// No cert and no key, just serve unencrypted
+			log.Fatalln(http.ListenAndServe(address, server))
+		}
 	}
 
 	app.Run(os.Args)

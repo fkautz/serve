@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/gorilla/handlers"
 )
 

@@ -1,7 +1,7 @@
 module github.com/fkautz/serve
 
 require (
-	github.com/gorilla/handlers v1.4.2
+	github.com/gorilla/handlers v1.5.0
 	github.com/urfave/cli v1.22.2
 )
 

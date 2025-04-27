@@ -5,19 +5,19 @@ on:
     branches:
       - main
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*'          # run on vX.Y.Z tag pushes
   pull_request:
     branches:
       - main
 
 permissions:
   id-token: write        # for OIDC / Sigstore attestations
-  contents: write        # needed to create Releases and upload assets  [oai_citation:2‡Stack Overflow](https://stackoverflow.com/questions/67389957/what-permissions-does-github-token-require-for-releases-from-a-github-action?utm_source=chatgpt.com)
+  contents: write        # to create Releases & upload assets  [oai_citation:0‡Stack Overflow](https://stackoverflow.com/questions/67389957/what-permissions-does-github-token-require-for-releases-from-a-github-action?utm_source=chatgpt.com)
   attestations: write    # for Provenance attestations
 
 jobs:
   build:
-    name: Build (Go 1.24.2)
+    name: Build & Release (Go 1.24.2)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,27 +40,38 @@ jobs:
         run: go build -v -o serve .
 
       - name: Generate artifact attestation
+        id: attest
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: './serve'
+        # this action writes the attestation to a temp file and exposes its path
+        # in `steps.attest.outputs.bundle-path`  [oai_citation:1‡GitHub](https://github.com/actions/attest-build-provenance?utm_source=chatgpt.com)
 
+      # Create & upload a GitHub Release only on a pushed tag
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/create-release@v1
         id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    # authenticate API calls  [oai_citation:2‡GitHub](https://github.com/actions/create-release?utm_source=chatgpt.com)
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}             # authenticate API calls  [oai_citation:3‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
             - Built with Go ${{ matrix.go-version }}
             - Provenance attested
 
+      - name: Copy attestation JSON
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cp "${{ steps.attest.outputs.bundle-path }}" ./serve.intoto.json
+
       - name: Upload binary to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}             # authenticate API calls  [oai_citation:4‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./serve
           asset_name: serve
@@ -69,8 +80,9 @@ jobs:
       - name: Upload attestation file
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}             # authenticate API calls  [oai_citation:5‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./serve.intoto.json
           asset_name: serve.intoto.json

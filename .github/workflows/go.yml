@@ -12,7 +12,7 @@ on:
 
 permissions:
   id-token: write        # for OIDC / Sigstore attestations
-  contents: write        # needed to create Releases and upload assets  [oai_citation:2‡Stack Overflow](https://stackoverflow.com/questions/67389957/what-permissions-does-github-token-require-for-releases-from-a-github-action?utm_source=chatgpt.com)
+  contents: write        # to create Releases & upload assets  [oai_citation:0‡Stack Overflow](https://stackoverflow.com/questions/67389957/what-permissions-does-github-token-require-for-releases-from-a-github-action?utm_source=chatgpt.com)
   attestations: write    # for Provenance attestations
 
 jobs:
@@ -48,8 +48,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/create-release@v1
         id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    # auth via environment  [oai_citation:1‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}             # authenticate API calls  [oai_citation:3‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
@@ -59,8 +60,9 @@ jobs:
       - name: Upload binary to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}             # authenticate API calls  [oai_citation:4‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./serve
           asset_name: serve
@@ -69,8 +71,9 @@ jobs:
       - name: Upload attestation file
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}             # authenticate API calls  [oai_citation:5‡DEV Community](https://dev.to/github/the-githubtoken-in-github-actions-how-it-works-change-permissions-customizations-3cgp?utm_source=chatgpt.com)
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./serve.intoto.json
           asset_name: serve.intoto.json

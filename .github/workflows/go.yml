@@ -12,12 +12,12 @@ on:
 
 permissions:
   id-token: write        # for OIDC / Sigstore attestations
-  contents: write        # to create Releases & upload assets  [oai_citation:0‡Stack Overflow](https://stackoverflow.com/questions/67389957/what-permissions-does-github-token-require-for-releases-from-a-github-action?utm_source=chatgpt.com)
+  contents: write        # for checkout (read) and uploading release assets
   attestations: write    # for Provenance attestations
 
 jobs:
   build:
-    name: Build & Release (Go 1.24.2)
+    name: Build & Release (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -36,35 +36,30 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Build binary
-        run: go build -v -o serve .
-
-      - name: Generate artifact attestation
-        id: attest
-        uses: actions/attest-build-provenance@v2
+      - name: Witness Run: build
+        id: witness
+        uses: testifysec/witness-run-action@v1
         with:
-          subject-path: './serve'
-        # this action writes the attestation to a temp file and exposes its path
-        # in `steps.attest.outputs.bundle-path`  [oai_citation:1‡GitHub](https://github.com/actions/attest-build-provenance?utm_source=chatgpt.com)
+          step: build
+          # this will run your build and emit a DSSE-wrapped in-toto
+          # statement into `serve.intoto.json`
+          command: go build -v -o serve .
+          enable-sigstore: true      # sign via Sigstore
+          enable-archivista: false    # disable Archivista upload
+          outfile: serve.intoto.json  # write attestation here  [oai_citation:0‡GitHub](https://github.com/testifysec/witness-run-action) [oai_citation:1‡GitHub](https://github.com/testifysec/witness-run-action)
 
-      # Create & upload a GitHub Release only on a pushed tag
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/create-release@v1
         id: create_release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    # authenticate API calls  [oai_citation:2‡GitHub](https://github.com/actions/create-release?utm_source=chatgpt.com)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
             - Built with Go ${{ matrix.go-version }}
-            - Provenance attested
-
-      - name: Copy attestation JSON
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          cp "${{ steps.attest.outputs.bundle-path }}" ./serve.intoto.json
+            - Provenance attested via Witness
 
       - name: Upload binary to release
         if: startsWith(github.ref, 'refs/tags/')
@@ -77,7 +72,7 @@ jobs:
           asset_name: serve
           asset_content_type: application/octet-stream
 
-      - name: Upload attestation file
+      - name: Upload attestation to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:

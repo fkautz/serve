@@ -3,14 +3,14 @@ name: Go
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*.*.*' ]
+    tags:    [ 'v*.*.*' ]
   pull_request:
     branches: [ main ]
 
 permissions:
-  id-token: write        # mint the OIDC token
-  contents: write        # checkout & upload assets
-  attestations: write    # emit provenance attestations
+  id-token:      write   # mint OIDC tokens
+  contents:      write   # checkout & upload assets
+  attestations:  write   # provenance attestations
 
 env:
   ARCHIVISTA_SERVER: https://archivista.testifysec.io
@@ -46,24 +46,22 @@ jobs:
             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sigstore")
           echo "SIGSTORE_OIDC_TOKEN=$TOKEN" >> $GITHUB_ENV
         shell: bash
-        # append with “&audience” because REQUEST_URL already has “?api-version=2.0”  [oai_citation:0‡Svrooij](https://svrooij.io/2023/11/07/github-actions-federated-credentials-explained/?utm_source=chatgpt.com)
 
       - name: "Witness Run: build"
         id: witness
         uses: testifysec/witness-run-action@v0.2.2
         with:
           step: build
-          enable-sigstore:             true
-          enable-archivista:           true
-          archivista-server:           ${{ env.ARCHIVISTA_SERVER }}
-          signer-fulcio-url:           ${{ env.FULCIO_SERVER }}
-          signer-fulcio-oidc-client-id: sigstore
-          signer-fulcio-oidc-issuer:    https://token.actions.githubusercontent.com
-          signer-fulcio-token:          ${{ env.SIGSTORE_OIDC_TOKEN }}
-          timestamp-servers:           https://freetsa.org/tsr
-          outfile:                     serve.intoto.json
-          command:                     "go build -v -o serve ."
-        # now Fulcio will accept your GH OIDC token and produce a valid DSSE envelope
+          enable-sigstore:       true
+          enable-archivista:     true
+          archivista-server:     ${{ env.ARCHIVISTA_SERVER }}
+          fulcio:                ${{ env.FULCIO_SERVER }}
+          fulcio-oidc-client-id: sigstore
+          fulcio-oidc-issuer:    https://token.actions.githubusercontent.com
+          fulcio-token:          ${{ env.SIGSTORE_OIDC_TOKEN }}
+          timestamp-servers:     https://freetsa.org/tsr
+          outfile:               serve.intoto.json
+          command:               "go build -v -o serve ."
 
       - name: "Create GitHub Release"
         if: startsWith(github.ref, 'refs/tags/')

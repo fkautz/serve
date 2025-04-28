@@ -2,88 +2,101 @@ name: Go
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'          # run on vX.Y.Z tag pushes
+    branches: [ main ]
+    tags:    [ 'v*.*.*' ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 permissions:
-  id-token: write        # for OIDC / Sigstore attestations
-  contents: write        # to create Releases & upload assets  [oai_citation:0‡Stack Overflow](https://stackoverflow.com/questions/67389957/what-permissions-does-github-token-require-for-releases-from-a-github-action?utm_source=chatgpt.com)
-  attestations: write    # for Provenance attestations
+  id-token:     write   # mint OIDC tokens
+  contents:     write   # checkout & upload assets
+  attestations: write   # produce provenance attestations
+
+env:
+  ARCHIVISTA_SERVER: https://archivista.testifysec.io
+  FULCIO_SERVER:     https://fulcio.sigstore.dev
 
 jobs:
   build:
-    name: Build & Release (Go 1.24.2)
+    name: Build & Release (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ["1.24.2"]
+        go-version: ['1.24.2']
 
     steps:
-      - name: Check out code
+      - name: "Check out code"
         uses: actions/checkout@v4
 
-      - name: Set up Go ${{ matrix.go-version }}
+      - name: "Set up Go ${{ matrix.go-version }}"
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Download dependencies
+      - name: "Download dependencies"
         run: go mod download
 
-      - name: Build binary
-        run: go build -v -o serve .
+      - name: "Request Sigstore OIDC token"
+        id: request_oidc
+        run: |
+          echo "Requesting OIDC token for Sigstore…" >&2
+          # call GitHub’s OIDC endpoint; it returns JSON {"value":"<JWT>",...}
+          response=$(curl -sSL \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sigstore")
+          # extract just the JWT value
+          token=$(echo "$response" | sed -En 's/.*"value"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p')
+          echo "SIGSTORE_OIDC_TOKEN=$token" >> $GITHUB_ENV
+        shell: bash
 
-      - name: Generate artifact attestation
-        id: attest
-        uses: actions/attest-build-provenance@v2
+      - name: "Witness Run: build"
+        id: witness
+        uses: testifysec/witness-run-action@v0.2.2
         with:
-          subject-path: './serve'
-        # this action writes the attestation to a temp file and exposes its path
-        # in `steps.attest.outputs.bundle-path`  [oai_citation:1‡GitHub](https://github.com/actions/attest-build-provenance?utm_source=chatgpt.com)
+          step: build
+          enable-sigstore:       true
+          enable-archivista:     true
+          archivista-server:     ${{ env.ARCHIVISTA_SERVER }}
+          fulcio:                ${{ env.FULCIO_SERVER }}
+          fulcio-oidc-client-id: sigstore
+          fulcio-oidc-issuer:    https://token.actions.githubusercontent.com
+          fulcio-token:          ${{ env.SIGSTORE_OIDC_TOKEN }}
+          timestamp-servers:     https://freetsa.org/tsr
+          outfile:               serve.intoto.json
+          command:               "go build -v -o serve ."
 
-      # Create & upload a GitHub Release only on a pushed tag
-      - name: Create GitHub Release
+      - name: "Create GitHub Release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/create-release@v1
         id: create_release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    # authenticate API calls  [oai_citation:2‡GitHub](https://github.com/actions/create-release?utm_source=chatgpt.com)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name:     ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
             - Built with Go ${{ matrix.go-version }}
-            - Provenance attested
+            - Provenance attested via Witness
 
-      - name: Copy attestation JSON
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          cp "${{ steps.attest.outputs.bundle-path }}" ./serve.intoto.json
-
-      - name: Upload binary to release
+      - name: "Upload binary to release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./serve
-          asset_name: serve
+          upload_url:        ${{ steps.create_release.outputs.upload_url }}
+          asset_path:        ./serve
+          asset_name:        serve
           asset_content_type: application/octet-stream
 
-      - name: Upload attestation file
+      - name: "Upload attestation to release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./serve.intoto.json
-          asset_name: serve.intoto.json
+          upload_url:        ${{ steps.create_release.outputs.upload_url }}
+          asset_path:        ./serve.intoto.json
+          asset_name:        serve.intoto.json
           asset_content_type: application/json

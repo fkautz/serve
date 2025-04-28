@@ -5,15 +5,15 @@ on:
     branches:
       - main
     tags:
-      - 'v*.*.*'          # run on vX.Y.Z tag pushes
+      - 'v*.*.*'
   pull_request:
     branches:
       - main
 
 permissions:
-  id-token: write        # for OIDC / Sigstore attestations
-  contents: write        # for checkout (read) and uploading release assets
-  attestations: write    # for Provenance attestations
+  id-token: write
+  contents: write
+  attestations: write
 
 jobs:
   build:
@@ -24,31 +24,29 @@ jobs:
         go-version: ["1.24.2"]
 
     steps:
-      - name: Check out code
+      - name: "Check out code"
         uses: actions/checkout@v4
 
-      - name: Set up Go ${{ matrix.go-version }}
+      - name: "Set up Go ${{ matrix.go-version }}"
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Download dependencies
+      - name: "Download dependencies"
         run: go mod download
 
-      - name: Witness Run: build
+      - name: "Witness Run: build"
         id: witness
         uses: testifysec/witness-run-action@v1
         with:
           step: build
-          # this will run your build and emit a DSSE-wrapped in-toto
-          # statement into `serve.intoto.json`
-          command: go build -v -o serve .
-          enable-sigstore: true      # sign via Sigstore
-          enable-archivista: false    # disable Archivista upload
-          outfile: serve.intoto.json  # write attestation here  [oai_citation:0‡GitHub](https://github.com/testifysec/witness-run-action) [oai_citation:1‡GitHub](https://github.com/testifysec/witness-run-action)
+          enable-sigstore: true
+          enable-archivista: true
+          command: "go build -v -o serve ."
+          outfile: serve.intoto.json
 
-      - name: Create GitHub Release
+      - name: "Create GitHub Release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/create-release@v1
         id: create_release
@@ -61,7 +59,7 @@ jobs:
             - Built with Go ${{ matrix.go-version }}
             - Provenance attested via Witness
 
-      - name: Upload binary to release
+      - name: "Upload binary to release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:
@@ -72,7 +70,7 @@ jobs:
           asset_name: serve
           asset_content_type: application/octet-stream
 
-      - name: Upload attestation to release
+      - name: "Upload attestation to release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-release-asset@v1
         env:

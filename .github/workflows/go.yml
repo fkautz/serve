@@ -10,7 +10,7 @@ on:
 permissions:
   id-token:      write   # mint OIDC tokens
   contents:      write   # checkout & upload assets
-  attestations:  write   # provenance attestations
+  attestations:  write   # produce provenance attestations
 
 env:
   ARCHIVISTA_SERVER: https://archivista.testifysec.io
@@ -41,10 +41,13 @@ jobs:
         id: request_oidc
         run: |
           echo "Requesting OIDC token for Sigstore…" >&2
-          TOKEN=$(curl -sSL \
+          # call GitHub's OIDC endpoint; it returns JSON {"value":"<JWT>",...}
+          response=$(curl -sSL \
             -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sigstore")
-          echo "SIGSTORE_OIDC_TOKEN=$TOKEN" >> $GITHUB_ENV
+          # extract the "value" field (the JWT) with sed
+          token=$(echo "$response" | sed -E 's/.*"value"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+          echo "SIGSTORE_OIDC_TOKEN=$token" >> $GITHUB_ENV
         shell: bash
 
       - name: "Witness Run: build"
@@ -82,9 +85,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url:        ${{ steps.create_release.outputs.upload_url }}
-          asset_path:        ./serve
-          asset_name:        serve
+          upload_url:         ${{ steps.create_release.outputs.upload_url }}
+          asset_path:         ./serve
+          asset_name:         serve
           asset_content_type: application/octet-stream
 
       - name: "Upload attestation to release"
@@ -93,7 +96,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url:        ${{ steps.create_release.outputs.upload_url }}
-          asset_path:        ./serve.intoto.json
-          asset_name:        serve.intoto.json
+          upload_url:         ${{ steps.create_release.outputs.upload_url }}
+          asset_path:         ./serve.intoto.json
+          asset_name:         serve.intoto.json
           asset_content_type: application/json

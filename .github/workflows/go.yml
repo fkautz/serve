@@ -38,7 +38,7 @@ jobs:
 
       - name: "Witness Run: build"
         id: witness
-        uses: testifysec/witness-run-action@v1
+        uses: testifysec/witness-run-action@v0.2.2
         with:
           step: build
           enable-sigstore: true

@@ -20,9 +20,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
-	"github.com/urfave/cli"
 	"github.com/gorilla/handlers"
+	"github.com/urfave/cli"
 )
 
 func main() {
@@ -64,6 +65,9 @@ func main() {
 		}
 		if c.String("address") != "" {
 			address = c.String("address")
+		}
+		if !strings.Contains(address, ":") {
+			address = ":" + address
 		}
 		server := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
 		if c.Bool("log") {

@@ -21,8 +21,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/urfave/cli"
 	"github.com/gorilla/handlers"
+	"github.com/urfave/cli"
 )
 
 func main() {
@@ -84,5 +84,7 @@ func main() {
 		}
 	}
 
-	app.Run(os.Args)
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
 }

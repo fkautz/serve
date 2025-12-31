@@ -55,7 +55,7 @@ func main() {
 			Usage: "Key for TLS",
 		},
 	}
-	app.Action = func(c *cli.Context) {
+	app.Action = func(c *cli.Context) error {
 		address := ":8080"
 		dir := "."
 
@@ -77,12 +77,13 @@ func main() {
 			if cert == "" || key == "" {
 				log.Fatalln("Both a certificate and key must be provided for TLS")
 			}
-			log.Fatalln(http.ListenAndServeTLS(address, cert, key, server))
-		} else {
-			// No cert and no key, just serve unencrypted
-			log.Fatalln(http.ListenAndServe(address, server))
+			return http.ListenAndServeTLS(address, cert, key, server)
 		}
+		// No cert and no key, just serve unencrypted
+		return http.ListenAndServe(address, server)
 	}
 
-	app.Run(os.Args)
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
 }

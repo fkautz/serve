@@ -41,16 +41,16 @@ func main() {
 			Usage: "Address to listen on",
 		},
 		cli.BoolFlag{
-			Name:  "log,l",
+			Name:  "log, l",
 			Usage: "Log to stderr",
 		},
 		cli.StringFlag{
-			Name:  "cert,c",
+			Name:  "cert, c",
 			Value: "",
 			Usage: "Certificate for TLS",
 		},
 		cli.StringFlag{
-			Name:  "key,k",
+			Name:  "key, k",
 			Value: "",
 			Usage: "Key for TLS",
 		},

@@ -1,0 +1,19 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+LICENSE
+
+# IDE
+.idea
+.vscode
+
+# Build artifacts
+serve
+*.exe
+*.test
+
+# CI/CD
+.github

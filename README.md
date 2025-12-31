@@ -7,7 +7,7 @@ install
 =======
 
 ```sh
-go get github.com/fkautz/serve
+go install github.com/fkautz/serve@latest
 ```
 
 usage
@@ -30,6 +30,8 @@ GLOBAL OPTIONS:
    --dir, -d '.'		Directory to serve
    --address, -a ':8080'	Address to listen on
    --log, -l			Log to stderr
+   --cert, -c			Certificate file for TLS
+   --key, -k			Key file for TLS
    --help, -h			show help
    --version, -v		print the version
 ```

@@ -56,15 +56,8 @@ func main() {
 		},
 	}
 	app.Action = func(c *cli.Context) error {
-		address := ":8080"
-		dir := "."
-
-		if c.String("dir") != "" {
-			dir = c.String("dir")
-		}
-		if c.String("address") != "" {
-			address = c.String("address")
-		}
+		dir := c.String("dir")
+		address := c.String("address")
 		server := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
 		if c.Bool("log") {
 			server = handlers.LoggingHandler(os.Stderr, server)

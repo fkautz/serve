@@ -45,13 +45,27 @@ jobs:
       - name: Run tests
         run: go test -v ./...
 
-      - name: Build binary
+      - name: Build binaries
         run: |
           VERSION="${GITHUB_REF_NAME}"
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             VERSION="${GITHUB_SHA::8}"
           fi
-          go build -v -ldflags="-X main.version=${VERSION}" -o serve .
+
+          mkdir -p dist
+
+          # Build for multiple platforms
+          for GOOS in linux darwin; do
+            for GOARCH in amd64 arm64; do
+              output="dist/serve-${GOOS}-${GOARCH}"
+              echo "Building ${output}..."
+              CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} \
+                go build -v -ldflags="-X main.version=${VERSION}" -o "${output}" .
+            done
+          done
+
+          # Keep default binary for attestation
+          cp dist/serve-linux-amd64 serve
 
       - name: Generate artifact attestation
         id: attest
@@ -70,7 +84,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create ${{ github.ref_name }} \
-            serve serve.intoto.json \
+            dist/serve-linux-amd64 \
+            dist/serve-linux-arm64 \
+            dist/serve-darwin-amd64 \
+            dist/serve-darwin-arm64 \
+            serve.intoto.json \
             --title "Release ${{ github.ref_name }}" \
             --notes "- Built with Go ${{ matrix.go-version }}
-          - Provenance attested"
+          - Provenance attested
+          - Binaries: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64"

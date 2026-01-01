@@ -29,10 +29,14 @@ import (
 	"github.com/urfave/cli"
 )
 
+// version is set at build time via ldflags
+var version = "dev"
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "serve"
 	app.Usage = "Simple HTTP Server"
+	app.Version = version
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "dir, d",

@@ -17,12 +17,16 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/urfave/cli"
 	"github.com/gorilla/handlers"
+	"github.com/urfave/cli"
 )
 
 func main() {
@@ -58,22 +62,54 @@ func main() {
 	app.Action = func(c *cli.Context) error {
 		dir := c.String("dir")
 		address := c.String("address")
-		server := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
+		handler := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
 		if c.Bool("log") {
-			server = handlers.LoggingHandler(os.Stderr, server)
+			handler = handlers.LoggingHandler(os.Stderr, handler)
 		}
+
+		server := &http.Server{
+			Addr:    address,
+			Handler: handler,
+		}
+
+		// Channel to listen for shutdown signals
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+		// Channel to capture server errors
+		serverErr := make(chan error, 1)
+
 		cert := c.String("cert")
 		key := c.String("key")
-		// if cert or key are set, start TLS
-		if cert != "" || key != "" {
-			// Both cert and key must be set
-			if cert == "" || key == "" {
-				log.Fatalln("Both a certificate and key must be provided for TLS")
+
+		go func() {
+			if cert != "" || key != "" {
+				if cert == "" || key == "" {
+					serverErr <- cli.NewExitError("Both a certificate and key must be provided for TLS", 1)
+					return
+				}
+				serverErr <- server.ListenAndServeTLS(cert, key)
+			} else {
+				serverErr <- server.ListenAndServe()
 			}
-			return http.ListenAndServeTLS(address, cert, key, server)
+		}()
+
+		select {
+		case err := <-serverErr:
+			if err != nil && err != http.ErrServerClosed {
+				return err
+			}
+		case <-stop:
+			log.Println("Shutting down server...")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := server.Shutdown(ctx); err != nil {
+				return err
+			}
+			log.Println("Server stopped")
 		}
-		// No cert and no key, just serve unencrypted
-		return http.ListenAndServe(address, server)
+
+		return nil
 	}
 
 	if err := app.Run(os.Args); err != nil {

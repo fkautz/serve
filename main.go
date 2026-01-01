@@ -26,97 +26,103 @@ import (
 	"time"
 
 	"github.com/gorilla/handlers"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v3"
 )
 
 // version is set at build time via ldflags
 var version = "dev"
 
 func main() {
-	app := cli.NewApp()
-	app.Name = "serve"
-	app.Usage = "Simple HTTP Server"
-	app.Version = version
-	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:  "dir, d",
-			Value: ".",
-			Usage: "Directory to serve",
+	app := &cli.Command{
+		Name:    "serve",
+		Usage:   "Simple HTTP Server",
+		Version: version,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "dir",
+				Aliases: []string{"d"},
+				Value:   ".",
+				Usage:   "Directory to serve",
+			},
+			&cli.StringFlag{
+				Name:    "address",
+				Aliases: []string{"a"},
+				Value:   ":8080",
+				Usage:   "Address to listen on",
+			},
+			&cli.BoolFlag{
+				Name:    "log",
+				Aliases: []string{"l"},
+				Usage:   "Log to stderr",
+			},
+			&cli.StringFlag{
+				Name:    "cert",
+				Aliases: []string{"c"},
+				Value:   "",
+				Usage:   "Certificate for TLS",
+			},
+			&cli.StringFlag{
+				Name:    "key",
+				Aliases: []string{"k"},
+				Value:   "",
+				Usage:   "Key for TLS",
+			},
 		},
-		cli.StringFlag{
-			Name:  "address, a",
-			Value: ":8080",
-			Usage: "Address to listen on",
-		},
-		cli.BoolFlag{
-			Name:  "log, l",
-			Usage: "Log to stderr",
-		},
-		cli.StringFlag{
-			Name:  "cert, c",
-			Value: "",
-			Usage: "Certificate for TLS",
-		},
-		cli.StringFlag{
-			Name:  "key, k",
-			Value: "",
-			Usage: "Key for TLS",
-		},
-	}
-	app.Action = func(c *cli.Context) error {
-		dir := c.String("dir")
-		address := c.String("address")
-		handler := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
-		if c.Bool("log") {
-			handler = handlers.LoggingHandler(os.Stderr, handler)
-		}
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			dir := cmd.String("dir")
+			address := cmd.String("address")
+			handler := handlers.CompressHandler(http.FileServer(http.Dir(dir)))
+			if cmd.Bool("log") {
+				handler = handlers.LoggingHandler(os.Stderr, handler)
+			}
 
-		server := &http.Server{
-			Addr:    address,
-			Handler: handler,
-		}
+			server := &http.Server{
+				Addr:    address,
+				Handler: handler,
+			}
 
-		// Channel to listen for shutdown signals
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+			// Channel to listen for shutdown signals
+			stop := make(chan os.Signal, 1)
+			signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-		// Channel to capture server errors
-		serverErr := make(chan error, 1)
+			// Channel to capture server errors
+			serverErr := make(chan error, 1)
 
-		cert := c.String("cert")
-		key := c.String("key")
+			cert := cmd.String("cert")
+			key := cmd.String("key")
 
-		go func() {
-			if cert != "" || key != "" {
-				if cert == "" || key == "" {
-					serverErr <- cli.NewExitError("Both a certificate and key must be provided for TLS", 1)
-					return
+			go func() {
+				if cert != "" || key != "" {
+					if cert == "" || key == "" {
+						serverErr <- cli.Exit("Both a certificate and key must be provided for TLS", 1)
+						return
+					}
+					serverErr <- server.ListenAndServeTLS(cert, key)
+				} else {
+					serverErr <- server.ListenAndServe()
 				}
-				serverErr <- server.ListenAndServeTLS(cert, key)
-			} else {
-				serverErr <- server.ListenAndServe()
-			}
-		}()
+			}()
 
-		select {
-		case err := <-serverErr:
-			if err != nil && err != http.ErrServerClosed {
-				return err
+			select {
+			case err := <-serverErr:
+				if err != nil && err != http.ErrServerClosed {
+					return err
+				}
+			case <-stop:
+				log.Println("Shutting down server...")
+				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := server.Shutdown(shutdownCtx); err != nil {
+					return err
+				}
+				log.Println("Server stopped")
 			}
-		case <-stop:
-			log.Println("Shutting down server...")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := server.Shutdown(ctx); err != nil {
-				return err
-			}
-			log.Println("Server stopped")
-		}
 
-		return nil
+			return nil
+		},
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		log.Fatal(err)
 	}
 }
